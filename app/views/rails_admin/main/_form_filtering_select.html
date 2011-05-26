@@ -7,6 +7,9 @@
     collection = [[field.formatted_value, selected_id]]
   else
     collection = field.associated_collection
+    scope = @authorization_adapter.query(:list, config.abstract_model)
+    options = {}
+    collection = config.abstract_model.all(options, scope).map {|obj| [field.associated_model_config.with(:object => obj).object_label, obj.id]}    
   end
 %>
 
