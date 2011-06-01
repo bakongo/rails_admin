@@ -45,9 +45,20 @@ module RailsAdmin
           print "Now copying assets files - javascripts, stylesheets and images! "
           origin = File.join(gem_path, 'public')
           destination = Rails.root.join('public')
+          puts copy_files(%w( stylesheets images javascripts ), origin, destination)
+        end
 
-          puts
-          %w( stylesheets images javascripts ).each do |directory|
+        def copy_view_files
+          print "Now copying view files "
+          origin = File.join(gem_path, 'app/views')
+          destination = Rails.root.join('app/views')
+          puts copy_files(%w( layouts . ), origin, destination)
+        end
+
+        private
+
+        def copy_files(directories, origin, destination)
+          directories.each do |directory|
             Dir[File.join(origin, directory, 'rails_admin', '**/*')].each do |file|
               relative  = file.gsub(/^#{origin}\//, '')
               dest_file = File.join(destination, relative)
@@ -61,8 +72,6 @@ module RailsAdmin
             end
           end
         end
-
-        private
 
         def check_for_devise_models
           devise_path = Rails.root.join("config/initializers/devise.rb")
