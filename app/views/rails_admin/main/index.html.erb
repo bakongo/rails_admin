@@ -49,7 +49,7 @@
             </table>
           </div>
         </div>
-        <% if can? :read, RailsAdmin::AbstractHistory %>        
+        <% if authorized? :read, RailsAdmin::AbstractModel.new('RailsAdmin::History') %>        
         <div class="ra-block">
           <div class="ui-widget-header">
             <%= t("admin.history.name") %>
