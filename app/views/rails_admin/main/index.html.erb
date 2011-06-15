@@ -50,6 +50,7 @@
           </div>
         </div>
         <div class="ra-block">
+        <% if authorized? :read, RailsAdmin::AbstractModel.new('RailsAdmin::History')%>
           <div class="ui-widget-header">
             <%= t("admin.history.name") %>
           </div>
@@ -58,6 +59,7 @@
             <div style="margin-top: 10px;" id="listingHistory" class="block list">
     <%= render(:partial => 'history', :locals => {:month => Time.now.month, :year => Time.now.year, :history => @history}) -%>
             </div>
+            <% end %>
             <%= javascript_tag do %>
               $j(document).ready(function($) {
                 var cache = {};
