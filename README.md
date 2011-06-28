@@ -2,6 +2,8 @@ RailsAdmin
 ==========
 RailsAdmin is a Rails engine that provides an easy-to-use interface for managing your data.
 
+See the demo here: http://demo.railsadmin.org/
+
 RailsAdmin started as a port of [MerbAdmin](https://github.com/sferik/merb-admin) to Rails 3
 and was implemented as a [Ruby Summer of Code project](http://www.rubysoc.org/projects)
 by [Bogdan Gaza](https://github.com/hurrycane) with mentors [Erik Michaels-Ober](https://github.com/sferik),
@@ -15,7 +17,8 @@ It currently offers the following features:
 * Easily update data
 * Safely delete data
 * Automatic form validation
-* Search
+* Search and filtering
+* Export data to CSV/JSON/XML
 * Authentication (via [Devise](https://github.com/plataformatec/devise))
 * User action history
 
@@ -24,14 +27,29 @@ Supported ORMs:
 * ActiveRecord
 
 _[Information](https://github.com/sferik/rails_admin/issues/105) about support for other ORMs._
+We plan to support Mongoid soon.
 
 Help
 ----
 If you have a question, you can ask the [official RailsAdmin mailing list](http://groups.google.com/group/rails_admin)
 or ping sferik on IRC in [#railsadmin on irc.freenode.net](http://webchat.freenode.net/?channels=railsadmin).
+Please don't use the issue tracker, which is for issues only.
+
+Check if the build is green here: http://ci.railsadmin.org/job/RailsAdmin/
+
+If you have good reasons to think you found a *rails_admin* bug, submit a ticket providing link to gists with:
+
+1. used rails_admin commit (in your Gemfile.lock)
+2. obtained stacktrace
+3. your initializers/rails_admin.rb
+4. models declarations that matter
+5. and anything else you find relevant
 
 API Update Note
 ---------------
+`navigation.max_visible_tabs` is not configurable anymore, as the new Activo
+theme implements the main navigation as a vertical list.
+
 `object_label` is not directly configurable anymore, as it lead to performance issues when used with a list of records.
 Please use object_label_method instead.
 
@@ -51,6 +69,7 @@ authorization framework as outlined later in this document.
 
 Screenshots
 -----------
+![Dashboard view](https://github.com/sferik/rails_admin/raw/master/screenshots/dashboard.png "Dashboard view")
 ![List view](https://github.com/sferik/rails_admin/raw/master/screenshots/list.png "List view")
 ![Edit view](https://github.com/sferik/rails_admin/raw/master/screenshots/edit.png "Edit view")
 
@@ -182,7 +201,7 @@ effects.
         end
       end
     end
-    
+
     def Team<ActiveRecord::Base
       def custom_label_method
         "Team #{self.name}"
@@ -231,19 +250,6 @@ accessors will be appended with ? whereas the writers will not be. That is, if
 you want to get the Team model's visibility, you use
 `RailsAdmin.config(Team).visible?`.
 
-**Configuring the number of visible tabs**
-
-You can configure the number of tabs visible in the top navigation:
-
-    RailsAdmin.config do |config|
-      config.navigation.max_visible_tabs 3
-    end
-
-Links to the rest of the models will be rendered in a drop down menu next to the
-tabs. Even though this option is not model specific, it shares the same
-semantics as the earlier ones - you could also pass in a block which would be
-evaluated at runtime.
-
 **Create a dropdown menu in navigation**
 
 This will desactivate config.navigation.max_visible_tabs.
@@ -269,7 +275,7 @@ Obtained navigation:
       Team
     ...
 
-You probably want to change the name of the dropdown. 
+You probably want to change the name of the dropdown.
 This can be easily achieved with the 'dropdown' attribute of the parent model.
 
 Added to previous example:
@@ -350,7 +356,7 @@ You can also configure it per model:
 
 By default, rows sorted by the field `id` in reverse order
 
-You can change default behavior with use two options: `sort_by` and `sort_reverse`
+You can change default behavior with use two options: `sort_by` and `sort_reverse?`
 
 **Default sorting - Configure globally**
 
@@ -358,7 +364,7 @@ You can change default behavior with use two options: `sort_by` and `sort_revers
       config.models do
         list do
           sort_by :updated_at
-          sort_reverse true
+          sort_reverse true # already default for serials ids and dates
         end
       end
     end
@@ -369,9 +375,108 @@ You can change default behavior with use two options: `sort_by` and `sort_revers
       config.model Player do
         list do
           sort_by :name
-          sort_reverse { false }
+          sort_reverse false
         end
       end
+    end
+
+**Fields - Sortability**
+
+You can make a column non-sortable by setting the sortable option to false (1)
+You can change the column that the field will actually sort on (2)
+Belongs_to associations :
+  will be sorted on their label if label is not virtual (:name, :title, etc.)
+  otherwise on the foreign_key (:team_id)
+  you can also specify a column on the targetted table (see example) (3)
+
+
+    RailsAdmin.config do |config|
+      config.model Player do
+        list do
+          field :created_at do # (1)
+            sortable false
+          end
+          field :name do # (2)
+            sortable :last_name # imagine there is a :last_name column and that :name is virtual
+          end
+          field :team_id do # (3)
+            sortable :win_percentage
+            # Will order by players playing with the best teams,
+            # rather than the team name (by default),
+            # or the team id (dull but default if label is not a column name)
+          end
+        end
+      end
+    end
+
+Default sort column is :id for ActiveRecord version
+To change it:
+    RailsAdmin.config do |config|
+      config.model Team do
+        sort_by :nam
+      end
+    end
+
+By default, dates and serial ids are reversed when first-sorted ('desc' instead of 'asc' in SQL).
+If you want to reverse (or cancel it) the default sort order (first column click or the default sort column):
+
+    RailsAdmin.config do |config|
+      config.model Team do
+        list do
+          field :id do
+            sort_reverse? false   # will sort id increasing ('asc') first ones first (default is last ones first)
+          end
+          field :created_at do
+            sort_reverse? false   # will sort dates increasing ('asc') first ones first (default is last ones first)
+          end
+          field :name do
+            sort_reverse? true    # will sort name decreasing ('dec') z->a (default is a->z)
+          end
+        end
+      end
+    end
+
+**Fields - Searchability**
+
+You can make a column non-searchable by setting the searchable option to false (1)
+You can change the column that the field will actually search on (2)
+You can specify a list of column that will be searched over (3)
+Belongs_to associations :
+  will be searched on their foreign_key (:team_id)
+  will be searched on their label if label is not virtual (:name, :title, etc.)
+  you can also specify columns on the targetted table (see example) (4)
+
+    RailsAdmin.config do |config|
+      config.model Player do
+        list do
+          field :created_at do # (1)
+            searchable false
+          end
+
+          field :name do (2)
+            searchable :last_name
+          end
+          # OR
+          field :name do (3)
+            searchable [:first_name, :last_name]
+          end
+
+          field :team_id do # (4)
+            searchable [:name, :id]
+            # eq. to [{Team => :name}, {Team => :id}]
+            # or even [:name, {Player => :team_id}]
+          end
+        end
+      end
+    end
+
+Searchable definitions will be used for searches and filters.
+You can independently desactivate querying (search) or filtering for each field with:
+
+    field :team do
+      searchable [:name, :color]
+      queryable? true # default
+      filterable? false
     end
 
 **Fields - Visibility and ordering**
@@ -498,21 +603,6 @@ options are defined for a single field, `strftime_format` has precedence over
 `date_format` option. For more information about localizing Rails see
 [Rails Internationalization API](http://edgeguides.rubyonrails.org/i18n.html#adding-date-time-formats)
 and [Rails I18n repository](https://github.com/svenfuchs/rails-i18n/tree/master/rails/locale).
-
-**Fields - Sortability**
-
-You can make a column non-sortable by setting the sortable option to false:
-
-    RailsAdmin.config do |config|
-      config.model Team do
-        list do
-          field :name
-          field :created_at do
-            sortable false
-          end
-        end
-      end
-    end
 
 **Fields - Column CSS class**
 
@@ -833,29 +923,66 @@ Everything can be overridden with `help`:
       end
     end
 
+**Fields - Paperclip**
+
+    class Team < ActiveRecord::Base
+      has_attached_file :image, :styles => { :medium => "300x300>", :thumb => "100x100>" }
+
+      # handling delete in your model, if needed. Replace all image occurences with your asset name.
+      attr_accessor :delete_image
+      before_save { self.image = nil if self.delete_image == '1' }
+    end
+
+    RailsAdmin.config do |config|
+      config.model Team do
+        edit do
+          field :image do
+            thumb_method :thumb # for images. Will default to full size image, which might break the layout
+            delete_method :delete_image # actually not needed in this case: default is "delete_#{field_name}" if the object responds to it
+          end
+        end
+      end
+    end
+
 **Fields - Enum**
 
-Fields of datatype string, integer, text can be rendered with select boxes, if object responds to `method_enum`.
+Fields of datatype string, integer, text can be rendered with select boxes. Auto-detected if object responds to `#{method_name}_enum`.
+You can use `enum_method` to indicate the name of the enumeration method in your model.
+You can use `enum` to override any `enum_method` and give back a `FormOptionsHelper#options_for_select` collection.
 
     class Team < ActiveRecord::Base
       ...
       def color_enum
-        self.team.available_color_choices
-        # return collection like ["blue", "yellow", "red"] or [["blue", 1], ["yellow", 2], ["red", 3]]
+        [['blue', 'red'], 'red']
+        # should return any collection accepted by `FormOptionsHelper#options_for_select`
+        # See http://api.rubyonrails.org/classes/ActionView/Helpers/FormOptionsHelper.html#method-i-options_for_select
       end
       ...
     end
-    
+
     RailsAdmin.config do |config|
       config.model Team do
         edit do
-          field :name
           field :color
-          field :created_at do
-            date_format :short
-          end
-          field :updated_at do
-            strftime_format "%Y-%m-%d"
+          # defaults to
+          # field :color, :enum do
+          #   enum_method do
+          #     :color_enum
+          #   end
+          # end
+        end
+      end
+    end
+
+If you don't have any enumeration method in your model, this will work:
+
+    RailsAdmin.config do |config|
+      config.model Team do
+        edit do
+          field :color, :enum do
+            enum do
+              ['green', 'white']
+            end
           end
         end
       end
@@ -960,7 +1087,7 @@ accomplished like this:
         end
       end
     end
-    
+
 Or even scope it like this:
 
     RailsAdmin.config do |config|
