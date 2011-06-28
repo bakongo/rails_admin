@@ -49,23 +49,23 @@ module RailsAdmin
       register_instance_option(:object_label_method) do
         @object_label_method ||= Config.label_methods.find { |method| abstract_model.model.new.respond_to? method } || :rails_admin_default_object_label_method
       end
-
+      
       register_instance_option(:label) do
         abstract_model.model.model_name.human(:default => abstract_model.model.model_name.titleize)
       end
-      
+
       register_instance_option(:weight) do
         0
       end
-      
+
       register_instance_option(:parent) do
         :root
       end
-      
+
       register_instance_option(:dropdown) do
         false
       end
-      
+
       # Act as a proxy for the section configurations that actually
       # store the configurations.
       def method_missing(m, *args, &block)
