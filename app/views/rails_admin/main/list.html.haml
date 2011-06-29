@@ -144,7 +144,7 @@
             - if authorized? :export, @abstract_model
               = action_button rails_admin_export_path(params.reject{|key, value| key.to_sym == :page}), t("admin.list.export_action"), nil, :method => :post
               = action_button '#', t("admin.list.export_selected"), nil, :onclick => "$j('#bulk_action').val('export'); $j('#bulk_form').submit(); return false;"
-            
-            = action_button rails_admin_history_model_path, t("admin.history.name")
+            - if authorized? :read, RailsAdmin::AbstractModel.new('RailsAdmin::History')
+              = action_button rails_admin_history_model_path, t("admin.history.name")
       .wat-cf
 
