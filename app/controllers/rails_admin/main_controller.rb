@@ -1,6 +1,8 @@
 module RailsAdmin
 
   class MainController < RailsAdmin::ApplicationController
+    include ActionView::Helpers::TextHelper
+
     layout "rails_admin/main"
 
     before_filter :get_model, :except => [:index]
@@ -230,14 +232,26 @@ module RailsAdmin
       @authorization_adapter.authorize(:bulk_destroy, @abstract_model) if @authorization_adapter
 
       scope = @authorization_adapter && @authorization_adapter.query(params[:action].to_sym, @abstract_model)
-      @destroyed_objects = @abstract_model.destroy(params[:bulk_ids], scope)
 
-      @destroyed_objects.each do |object|
+      processed_objects = @abstract_model.destroy(params[:bulk_ids], scope)
+
+      destroyed = processed_objects.select(&:destroyed?)
+      not_destroyed = processed_objects - destroyed
+
+      destroyed.each do |object|
         message = "Destroyed #{@model_config.with(:object => object).object_label}"
         AbstractHistory.create_history_item(message, object, @abstract_model, _current_user)
       end
 
-      redirect_to rails_admin_list_path, :notice => t("admin.flash.successful", :name => @model_config.label, :action => t("admin.actions.deleted"))
+      unless destroyed.empty?
+        flash[:notice] = t("admin.flash.successful", :name => pluralize(destroyed.count, @model_config.label), :action => t("admin.actions.deleted"))
+      end
+
+      unless not_destroyed.empty?
+        flash[:error] = t("admin.flash.error", :name => pluralize(not_destroyed.count, @model_config.label), :action => t("admin.actions.deleted"))
+      end
+
+      redirect_to rails_admin_list_path
     end
 
     def handle_error(e)
@@ -274,6 +288,10 @@ module RailsAdmin
         "#{@abstract_model.model.table_name}.#{params[:sort]}"
       elsif field.sortable == false # use default sort, asked field is not sortable
         "#{@abstract_model.model.table_name}.#{@model_config.list.sort_by.to_s}"
+      elsif field.sortable.is_a?(String) && field.sortable.include?('.') # just provide sortable, don't do anything smart
+        field.sortable
+      elsif field.sortable.is_a?(Hash) # just join sortable hash, don't do anything smart
+        "#{field.sortable.keys.first}.#{field.sortable.values.first}"
       elsif field.association? # use column on target table
         "#{field.associated_model_config.abstract_model.model.table_name}.#{field.sortable}"
       else # use described column in the field conf.
@@ -315,14 +333,16 @@ module RailsAdmin
       values = []
       conditions = [""]
 
-
       if query.present?
-        @queryable_fields = @model_config.list.fields.select(&:queryable?).map(&:searchable_columns).flatten
-        @queryable_fields.each do |field_infos|
-          statement, *value = build_statement(field_infos[:column], field_infos[:type], query, RailsAdmin::Config.default_search_operator)
-          if statement && value
-            query_statements << statement
-            values << value
+        queryable_fields = @model_config.list.fields.select(&:queryable?)
+        queryable_fields.each do |field|
+          searchable_columns = field.searchable_columns.flatten
+          searchable_columns.each do |field_infos|
+            statement, *value = build_statement(field_infos[:column], field_infos[:type], query, field.search_operator)
+            if statement && value
+              query_statements << statement
+              values << value
+            end
           end
         end
       end
@@ -333,14 +353,14 @@ module RailsAdmin
       end
 
       if filters.present?
-        @filterable_fields = @model_config.list.fields.select(&:filterable?).inject({}){ |memo, field| memo[field.name] = field.searchable_columns; memo }
+        @filterable_fields = @model_config.list.fields.select(&:filterable?).inject({}){ |memo, field| memo[field.name.intern] = field.searchable_columns; memo }
         filters.each_pair do |field_name, filters_dump|
           filters_dump.each do |filter_index, filter_dump|
             field_statements = []
             @filterable_fields[field_name.intern].each do |field_infos|
               unless filter_dump[:disabled]
                 statement, *value = build_statement(field_infos[:column], field_infos[:type], filter_dump[:value], (filter_dump[:operator] || 'default'))
-                unless statement.nil? || value.nil?
+                if statement
                   field_statements << statement
                   values << value
                 end
@@ -361,11 +381,27 @@ module RailsAdmin
     end
 
     def build_statement(column, type, value, operator)
+      if operator == '_discard' || value == '_discard'
+        return
+      elsif operator == '_blank' || value == '_blank'
+        return ["(#{column} IS NULL OR #{column} = '')"]
+      elsif operator == '_present' || value == '_present'
+        return ["(#{column} IS NOT NULL AND #{column} != '')"]
+      elsif operator == '_null' || value == '_null'
+        return ["(#{column} IS NULL)"]
+      elsif operator == '_not_null' || value == '_not_null'
+        return ["(#{column} IS NOT NULL)"]
+      elsif operator == '_empty' || value == '_empty'
+        return ["(#{column} = '')"]
+      elsif operator == '_not_empty' || value == '_not_empty'
+        return ["(#{column} != '')"]
+      end
+      
       case type
       when :boolean
-         ["(#{column} #{operator == 'default' ? '=' : operator} ?)", ['true', 't', '1'].include?(value)] if ['true', 'false', 't', 'f', '1', '0'].include?(value)
+         ["(#{column} = ?)", ['true', 't', '1'].include?(value)] if ['true', 'false', 't', 'f', '1', '0'].include?(value)
       when :integer, :belongs_to_association
-         ["(#{column} #{operator == 'default' ? '=' : operator} ?)", value.to_i] if value.to_i.to_s == value
+         ["(#{column} = ?)", value.to_i] if value.to_i.to_s == value
       when :string, :text
         value = case operator
         when 'default', 'like'

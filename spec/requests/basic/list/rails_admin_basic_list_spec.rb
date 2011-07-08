@@ -127,7 +127,7 @@ describe "RailsAdmin Basic List" do
           field :id
           field :name
           field :team_id do
-            searchable({ Player => :team_id })
+            searchable Player => :team_id
           end
         end
       end
@@ -145,7 +145,41 @@ describe "RailsAdmin Basic List" do
           field :id
           field :name
           field :team_id do
-            searchable({ Team => :name })
+            searchable Team => :name
+          end
+        end
+      end
+      visit rails_admin_list_path(:model_name => "player", :filters => {:team_id => {"1" => {:value => @teams.first.name}}})
+      should have_content(@players[0].name)
+      should have_content(@players[1].name)
+      should have_no_content(@players[2].name)
+      should have_no_content(@players[3].name)
+    end
+    
+    it "should allow to search a belongs_to attribute over the target table with a table name specified as a hash" do
+      RailsAdmin.config Player do
+        list do
+          field :id
+          field :name
+          field :team_id do
+            searchable :teams => :name
+          end
+        end
+      end
+      visit rails_admin_list_path(:model_name => "player", :filters => {:team_id => {"1" => {:value => @teams.first.name}}})
+      should have_content(@players[0].name)
+      should have_content(@players[1].name)
+      should have_no_content(@players[2].name)
+      should have_no_content(@players[3].name)
+    end
+    
+    it "should allow to search a belongs_to attribute over the target table with a table name specified as a string" do
+      RailsAdmin.config Player do
+        list do
+          field :id
+          field :name
+          field :team_id do
+            searchable 'teams.name'
           end
         end
       end
@@ -194,7 +228,7 @@ describe "RailsAdmin Basic List" do
           field :id
           field :name
           field :team_id do
-            searchable [:name, {Player => :team_id}]
+            searchable [:name, Player => :team_id]
           end
         end
       end
@@ -276,4 +310,59 @@ describe "RailsAdmin Basic List" do
       end
     end
   end
+
+  describe "search operator" do
+    let(:player) { FactoryGirl.create :player }
+
+    before do
+      Player.count.should == 0
+    end
+
+    it "finds the player if the query matches the default search opeartor" do
+      RailsAdmin.config do |config|
+        config.default_search_operator = 'ends_with'
+        config.model Player do
+          list { field :name }
+        end
+      end
+      visit rails_admin_list_path(:model_name => "player", :query => player.name[2, -1])
+      should have_content(player.name)
+    end
+
+    it "does not find the player if the query does not match the default search opeartor" do
+      RailsAdmin.config do |config|
+        config.default_search_operator = 'ends_with'
+        config.model Player do
+          list { field :name }
+        end
+      end
+      visit rails_admin_list_path(:model_name => "player", :query => player.name[0, 2])
+      should have_no_content(player.name)
+    end
+
+    it "finds the player if the query matches the specified search operator" do
+      RailsAdmin.config Player do
+        list do
+          field :name do
+            search_operator 'starts_with'
+          end
+        end
+      end
+      visit rails_admin_list_path(:model_name => "player", :query => player.name[0, 2])
+      should have_content(player.name)
+    end
+
+    it "does not find the player if the query does not match the specified search operator" do
+      RailsAdmin.config Player do
+        list do
+          field :name do
+            search_operator 'starts_with'
+          end
+        end
+      end
+      visit rails_admin_list_path(:model_name => "player", :query => player.name[1..-1])
+      should have_no_content(player.name)
+    end
+  end
+
 end
