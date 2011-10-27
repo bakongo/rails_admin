@@ -34,7 +34,7 @@ describe "RailsAdmin Config DSL" do
 
     it "should be hidden from other models relations in the edit view" do
       visit rails_admin_new_path(:model_name => "team")
-      should_not have_selector("#team_division_id")
+      should_not have_selector("#team_division")
       should_not have_selector("input#team_fans")
     end
 
@@ -76,6 +76,26 @@ describe "RailsAdmin Config DSL" do
       @league = FactoryGirl.create :league
 
       RailsAdmin.config('League').with(:object => @league).object_label.should == "League '#{@league.name}'"
+    end
+  end
+  
+  describe "compact_show_view" do
+    
+    it 'should hide empty fields in show view by default' do
+      @player = FactoryGirl.create :player
+      visit rails_admin_show_path(:model_name => "league", :id => @player.id)
+      should_not have_css("div.player_born_on")
+    end
+    
+    
+    it 'should be disactivable' do
+      RailsAdmin.config do |c|
+        c.compact_show_view = false
+      end
+
+      @player = FactoryGirl.create :player
+      visit rails_admin_show_path(:model_name => "player", :id => @player.id)
+      should have_css("div.player_born_on")
     end
   end
 

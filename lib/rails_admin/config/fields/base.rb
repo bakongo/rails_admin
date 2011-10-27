@@ -49,7 +49,11 @@ module RailsAdmin
         register_instance_option(:column_width) do
           self.class.instance_variable_get("@column_width")
         end
-
+        
+        register_instance_option(:read_only) do
+          false
+        end
+        
         register_instance_option(:truncated?) do
           true
         end
@@ -71,7 +75,7 @@ module RailsAdmin
         end
 
         register_instance_option(:search_operator) do
-          RailsAdmin::Config.default_search_operator
+          @search_operator ||= RailsAdmin::Config.default_search_operator
         end
 
         # serials and dates are reversed in list, which is more natural (last modified items first).
@@ -89,12 +93,14 @@ module RailsAdmin
           when :all # valid only for associations
             self.associated_model_config.list.fields.map { |f| { :column => "#{self.associated_model_config.abstract_model.model.table_name}.#{f.name}", :type => f.type } }
           else
-            [self.searchable].flatten.map do |f| 
+            [self.searchable].flatten.map do |f|
               if f.is_a?(String) && f.include?('.')                            #  "table_name.attribute"
                 @table_name, column_name = f.split '.'
                 f = column_name.to_sym
               end
+              
               field_name = f.is_a?(Hash) ? f.values.first : f
+              
               abstract_model = if f.is_a?(Hash) && (f.keys.first.is_a?(Class) || f.keys.first.is_a?(String)) #  { Model => :attribute } || { "Model" => :attribute }
                 AbstractModel.new(f.keys.first)
               elsif f.is_a?(Hash)                                            #  { :table_name => :attribute }
@@ -118,10 +124,15 @@ module RailsAdmin
             "".html_safe
           end
         end
+        
+        # output for pretty printing (show, list, etc)
+        register_instance_option(:pretty_value) do
+          formatted_value
+        end
 
         # Accessor for field's help text displayed below input field.
         register_instance_option(:help) do
-          (required? ? I18n.translate("admin.new.required") : I18n.translate("admin.new.optional") + '. ')
+          @help ||= (required? ? I18n.translate("admin.new.required") : I18n.translate("admin.new.optional")) + '. '
         end
 
         register_instance_option(:html_attributes) do
@@ -135,19 +146,24 @@ module RailsAdmin
         #
         # @see RailsAdmin::AbstractModel.properties
         register_instance_option(:label) do
-          abstract_model.model.human_attribute_name name
+          @label ||= abstract_model.model.human_attribute_name name
         end
 
         # Accessor for field's maximum length.
         #
         # @see RailsAdmin::AbstractModel.properties
         register_instance_option(:length) do
-          properties && properties[:length]
+          @length ||= properties && properties[:length]
         end
 
         register_instance_option(:partial) do
           :form_field
         end
+
+        register_deprecated_instance_option(:show_partial, :partial) # deprecated on 2011-07-15
+        register_deprecated_instance_option(:edit_partial, :partial) # deprecated on 2011-07-15
+        register_deprecated_instance_option(:create_partial, :partial) # deprecated on 2011-07-15
+        register_deprecated_instance_option(:update_partial, :partial) # deprecated on 2011-07-15
 
         register_instance_option(:render) do
           bindings[:view].render :partial => partial.to_s, :locals => {:field => self, :form => bindings[:form] }
@@ -160,9 +176,11 @@ module RailsAdmin
         #
         # @see RailsAdmin::AbstractModel.properties
         register_instance_option(:required?) do
-          validators = abstract_model.model.validators_on(@name)
-          required_by_validator = validators.find{|v| (v.class == ActiveModel::Validations::PresenceValidator) || (v.class == ActiveModel::Validations::NumericalityValidator && v.options[:allow_nil]==false)} && true || false
-          properties && !properties[:nullable?] || required_by_validator
+          @required ||= begin
+            validators = abstract_model.model.validators_on(@name)
+            required_by_validator = validators.find{|v| (v.class == ActiveModel::Validations::PresenceValidator) || (v.class == ActiveModel::Validations::NumericalityValidator && v.options[:allow_nil]==false)} && true || false
+            properties && !properties[:nullable?] || required_by_validator
+          end
         end
 
         # Accessor for whether this is a serial field (aka. primary key, identifier).
@@ -173,7 +191,7 @@ module RailsAdmin
         end
 
         register_instance_option(:view_helper) do
-          self.class.instance_variable_get("@view_helper")
+          @view_helper ||= self.class.instance_variable_get("@view_helper")
         end
 
         # Is this an association
@@ -253,7 +271,7 @@ module RailsAdmin
         end
 
         def method_name
-          name.to_s
+          name
         end
       end
     end
