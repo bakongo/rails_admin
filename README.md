@@ -1109,6 +1109,22 @@ Everything can be overridden with `help`:
       end
     end
 
+If you want to override the underlying attributes, like whether a
+field is required or not, you can, and it will be reflected in the
+help text.
+
+    class Team < ActiveRecord::Base
+      rails_admin do
+        edit do
+          field :name
+          field :email do
+	  field :age
+            required true
+          end
+        end
+      end
+    end
+
 **Fields - Paperclip**
 
     class Team < ActiveRecord::Base
