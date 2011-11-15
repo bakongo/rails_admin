@@ -194,7 +194,7 @@ module RailsAdmin
       @authorization_adapter.authorize(:destroy, @abstract_model, @object) if @authorization_adapter
 
       if @object.destroy
-        AbstractHistory.create_history_item("Destroyed #{@model_config.with(:object => @object).object_label}", @object, @abstract_model, _current_user)
+        AbstractHistory.create_history_item("#{t("admin.actions.deleted").titleize} #{@model_config.with(:object => @object).object_label}", @object, @abstract_model, _current_user)
         flash[:notice] = t("admin.flash.successful", :name => @model_config.label, :action => t("admin.actions.deleted"))
       else
         flash[:error] = t("admin.flash.error", :name => @model_config.label, :action => t("admin.actions.deleted"))
